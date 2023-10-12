@@ -1,2 +1,2 @@
 # Amazon molecule literature
- Literature review related to Amazon molecule program
+ Literature review related to the Amazon molecule program
