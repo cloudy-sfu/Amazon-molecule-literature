@@ -12,7 +12,7 @@ lag = 96
 dataset_name = 'default_15min'
 
 # %% Load data.
-ts_train, ts_test = pd.read_pickle(f'raw/1_{dataset_name}_std.pkl')
+ts_train, ts_test = pd.read_pickle(f'data/1_{dataset_name}_std.pkl')
 ts = pd.concat([ts_train, ts_test], ignore_index=True)
 
 # %% Split by height.
@@ -23,13 +23,9 @@ for mass, height, mass_height in mass_heights:
     cols_grouped_height[height].append(mass_height)
 
 # %% Initialization.
-p_val = {height: np.ones(shape=(len(x), len(x))) for height, x in cols_grouped_height.items()}
-os.makedirs(f'results/1_{dataset_name}_p/', exist_ok=True)
+gc_val = {height: np.ones(shape=(len(x), len(x))) for height, x in cols_grouped_height.items()}
+os.makedirs(f'results/1_{dataset_name}_gc/', exist_ok=True)
 pbar = tqdm(total=ts_train.shape[1])
-
-@np.vectorize
-def decimal_non_zero(x):
-    return format(x, '.2f').removeprefix('0')
 
 # %% Infer causality.
 for height, cols_this_height in cols_grouped_height.items():
@@ -41,23 +37,23 @@ for height, cols_this_height in cols_grouped_height.items():
         for i in causes:
             if i == j:
                 continue
-            p_val[height][i, j] = 0
+            gc_val[height][i, j] = 0
         pbar.update(1)
 
     # Heatmap
     fig, ax = plt.subplots(figsize=(7.5, 6))
-    mask = np.zeros_like(p_val[height], dtype=bool)
+    mask = np.zeros_like(gc_val[height], dtype=bool)
     mask[np.diag_indices_from(mask)] = True
-    heatmap = sns.heatmap(p_val[height], mask=mask, square=True, linewidths=.5, cmap='coolwarm',
-                          vmin=0, vmax=0.1, annot=decimal_non_zero(p_val[height]), fmt='', ax=ax)
+    heatmap = sns.heatmap(gc_val[height], mask=mask, square=True, linewidths=.5, cmap='coolwarm',
+                          vmin=0, vmax=None, annot=gc_val[height], fmt='', ax=ax)
     ax.set_ylabel('Cause')
     ax.set_xlabel('Effect')
-    ax.set_xticklabels(cols_grouped_height[height], rotation=45)
-    ax.set_yticklabels(cols_grouped_height[height], rotation=0)
+    ax.set_xticklabels(cols_this_height, rotation=45)
+    ax.set_yticklabels(cols_this_height, rotation=0)
     fig.subplots_adjust(bottom=0.15, top=0.95, left=0.10, right=1)
     sns.set_style({'xtick.bottom': True}, {'ytick.left': True})
-    fig.savefig(f'results/1_{dataset_name}_p/{lag}_{height}.eps')
+    fig.savefig(f'results/1_{dataset_name}_gc/{lag}_{height}.eps')
     plt.close(fig)
 
 # %% Export.
-pd.to_pickle(p_val, f'raw/1_{dataset_name}_p_{lag}.pkl')
+pd.to_pickle(gc_val, f'raw/1_{dataset_name}_gc_{lag}.pkl')

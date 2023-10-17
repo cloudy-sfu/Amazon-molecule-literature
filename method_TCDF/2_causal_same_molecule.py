@@ -13,7 +13,7 @@ lag = 96
 dataset_name = 'default_15min'
 
 # %% Load data.
-ts_train, ts_test = pd.read_pickle(f'raw/1_{dataset_name}_std.pkl')
+ts_train, ts_test = pd.read_pickle(f'data/1_{dataset_name}_std.pkl')
 ts = pd.concat([ts_train, ts_test], ignore_index=True)
 
 # %% Split by height.
@@ -28,9 +28,8 @@ all_possible_heights = np.unique(all_possible_heights)
 heights_pair = list((fi, fj) for fi, fj in product(all_possible_heights, repeat=2) if fi != fj)
 
 # %% Initialization.
-p_val = pd.DataFrame(index=cols_grouped_mass.keys(), columns=pd.MultiIndex.from_tuples(heights_pair), dtype=float,
-                     data=1)
-os.makedirs(f'results/2_{dataset_name}_p/', exist_ok=True)
+gc_val = pd.DataFrame(index=cols_grouped_mass.keys(), columns=pd.MultiIndex.from_tuples(heights_pair), dtype=float,
+                      data=1)
 pbar = tqdm(total=ts_train.shape[1])
 
 # %% Infer causality.
@@ -44,7 +43,7 @@ for mass, cols_this_mass in cols_grouped_mass.items():
         for i in causes:
             if i == j:
                 continue
-            p_val.loc[mass, (cols_height[i], cols_height[j])] = 0
+            gc_val.loc[mass, (cols_height[i], cols_height[j])] = 0
         pbar.update(1)
 
 # %% Heatmap
@@ -52,17 +51,17 @@ for mass, cols_this_mass in cols_grouped_mass.items():
 def decimal_non_zero(x_):
     return format(x_, '.2f').removeprefix('0')
 
-fig, ax = plt.subplots(figsize=(0.75 * p_val.shape[1], 0.5 * p_val.shape[0] + 1))
-heatmap = sns.heatmap(p_val.values, square=True, linewidths=.5, cmap='coolwarm', vmin=0, vmax=0.1,
-                      annot=decimal_non_zero(p_val.values), fmt='', ax=ax)
+fig, ax = plt.subplots(figsize=(0.75 * gc_val.shape[1], 0.5 * gc_val.shape[0] + 1))
+heatmap = sns.heatmap(gc_val.values, square=True, linewidths=.5, cmap='coolwarm', vmin=0, vmax=0.1,
+                      annot=gc_val.values, fmt='', ax=ax)
 ax.set_ylabel('Mass')
 ax.set_xlabel('(Cause, Effect)')
-ax.set_xticklabels(p_val.columns, rotation=45)
-ax.set_yticklabels(p_val.index, rotation=0)
+ax.set_xticklabels(gc_val.columns, rotation=45)
+ax.set_yticklabels(gc_val.index, rotation=0)
 fig.subplots_adjust(bottom=0.2, top=0.95, left=0.05, right=0.95)
 sns.set_style({'xtick.bottom': True}, {'ytick.left': True})
-fig.savefig(f'results/2_{dataset_name}_p_{lag}.eps')
+fig.savefig(f'results/2_{dataset_name}_gc_{lag}.eps')
 plt.close(fig)
 
 # %% Export.
-pd.to_pickle(p_val, f'raw/2_{dataset_name}_p_{lag}.pkl')
+pd.to_pickle(gc_val, f'raw/2_{dataset_name}_gc_{lag}.pkl')
