@@ -155,3 +155,5 @@ raw/*
 results/*
 !results/.placeholder
 activate_python_venv
+data/a1_*_gc.mat
+data/a2_*_gc.mat
