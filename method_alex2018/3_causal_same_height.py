@@ -10,7 +10,7 @@ import torch
 from matplotlib.colors import ListedColormap
 
 # %% Constants.
-lag = 96
+# lag = 96
 dataset_name = 'default_15min'
 
 # %% Load data.
@@ -59,7 +59,7 @@ for height, cols_this_height in cols_grouped_height.items():
     x = ts[cols_this_height].values
     x = torch.tensor(x[np.newaxis, :], dtype=torch.float32, device=device)
     clstm, gc_est, lambda_0 = bisearch(x, 0, 1, max_search_)
-    torch.onnx.export(clstm, x, f"raw/3_{dataset_name}_clstm_{lag}_{height}_{round(lambda_0, 3)}.onnx", verbose=False)
+    torch.onnx.export(clstm, x, f"raw/3_{dataset_name}_clstm_{height}_{round(lambda_0, 3)}.onnx", verbose=False)
     gc_val[height] = gc_est
 
     # Heatmap
@@ -75,8 +75,8 @@ for height, cols_this_height in cols_grouped_height.items():
     ax.set_yticklabels(cols_this_height, rotation=0)
     fig.subplots_adjust(bottom=0.15, top=0.95, left=0.10, right=1)
     sns.set_style({'xtick.bottom': True}, {'ytick.left': True})
-    fig.savefig(f'results/3_{dataset_name}_gc/{lag}_{height}.eps')
+    fig.savefig(f'results/3_{dataset_name}_gc/{height}.eps')
     plt.close(fig)
 
 # %% Export.
-pd.to_pickle(gc_val, f'raw/3_{dataset_name}_gc_{lag}.pkl')
+pd.to_pickle(gc_val, f'raw/3_{dataset_name}_gc.pkl')

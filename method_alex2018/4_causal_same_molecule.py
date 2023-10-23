@@ -60,7 +60,7 @@ for mass, cols_this_mass in cols_grouped_mass.items():
     x = ts[cols_this_mass].values
     x = torch.tensor(x[np.newaxis, :], dtype=torch.float32, device=device)
     clstm, gc_est, lambda_0 = bisearch(x, 0, 1, max_search_)
-    torch.onnx.export(clstm, x, f"raw/4_{dataset_name}_clstm_{lag}_{mass}_{round(lambda_0, 3)}.onnx", verbose=False)
+    torch.onnx.export(clstm, x, f"raw/4_{dataset_name}_clstm_{mass}_{round(lambda_0, 3)}.onnx", verbose=False)
     cols_height = [col.split('_')[1] for col in cols_this_mass]
     for i, j in product(range(m), repeat=2):
         if i == j:
@@ -82,8 +82,8 @@ ax.set_xticklabels(gc_val.columns, rotation=45)
 ax.set_yticklabels(gc_val.index, rotation=0)
 fig.subplots_adjust(bottom=0.2, top=0.95, left=0.05, right=0.95)
 sns.set_style({'xtick.bottom': True}, {'ytick.left': True})
-fig.savefig(f'results/4_{dataset_name}_gc_{lag}.eps')
+fig.savefig(f'results/4_{dataset_name}_gc.eps')
 plt.close(fig)
 
 # %% Export.
-pd.to_pickle(gc_val, f'raw/4_{dataset_name}_gc_{lag}.pkl')
+pd.to_pickle(gc_val, f'raw/4_{dataset_name}_gc.pkl')

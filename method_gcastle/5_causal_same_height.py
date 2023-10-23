@@ -8,11 +8,9 @@ from tqdm import tqdm
 from matplotlib.colors import ListedColormap
 from castle.algorithms import PNL
 from castle.algorithms import *
-import torch
 from copy import deepcopy
 
 # %% Constants.
-lag = 96
 dataset_name = 'default_15min'
 
 # %% Load data.
@@ -37,22 +35,35 @@ methods_dict = {
     'DirectLiNGAM': DirectLiNGAM(),
     'ICALiNGAM': ICALiNGAM(random_state=2775, max_iter=5000),
     'GES': GES(method='r2'),
-    'PNL': PNL(hidden_layers=2, hidden_units=32, batch_size=ts.shape[0], epochs=2000, alpha=0.05, device_type='gpu',
-               device_ids=0, activation=torch.nn.ReLU()),
+    # very slow
+    # 'PNL': PNL(hidden_layers=2, hidden_units=32, batch_size=3500, epochs=2000, alpha=0.05, device_type='gpu',
+    #            device_ids=0, activation=torch.nn.ReLU()),
     'NOTEARS': Notears(),
+    'NOTEARS-MLP': NotearsNonlinear(hidden_layers=(32, 32, 1), model_type='mlp', device_type='gpu', device_ids=0),
+    'NOTEARS-SOB': NotearsNonlinear(hidden_layers=(32, 32, 1), model_type='sob', device_type='gpu', device_ids=0),
+    # Unknown true causal graph
+    # 'NOTEARS-lOW-RANK': NotearsLowRank(),
+    'DAG-GNN': DAG_GNN(device_type='gpu', batch_size=3500, device_ids=0),
+    'GOLEM': GOLEM(seed=2775, device_type='gpu', device_ids=0, num_iter=10000),
+    'GraNDAG': GraNDAG(hidden_dim=32, batch_size=3500, device_type='gpu', device_ids=0, random_seed=2775),
+    'MCSL': MCSL(num_hidden_layers=2, hidden_dim=32, device_type='gpu', device_ids=0, random_seed=2775),
+    'GAE': GAE(hidden_layers=2, hidden_dim=32, seed=2775, device_type='gpu', device_ids=0,
+               early_stopping=True, early_stopping_thresh=0.995),
+    # very slow, 1*NVIDIA GTX 4090, time = 90 s/iter * nb_epoch iter
+    # 'RL': RL(batch_size=3500, seed=2775, nb_epoch=1000, device_type='gpu', device_ids=0),
+    'CORL': CORL(batch_size=1500, random_seed=2775, iteration=1000, device_type='gpu', device_ids=0),
+    # Unknown true causal graph
+    # 'TTPM': TTPM()
 }
-pbar = tqdm(total=len(cols_grouped_height) * len(methods_dict))
 
 # %% Infer causality.
-for method, method_instance in methods_dict:
-    if os.path.exists(f'raw/5_{dataset_name}_gc_{lag}_{method}.pkl'):
-        pbar.update(len(cols_grouped_height))
+for method, method_instance in methods_dict.items():
+    if os.path.exists(f'raw/5_{dataset_name}_gc_{method}.pkl'):
         continue
 
     gc_val = {height: np.ones(shape=(len(x), len(x))) for height, x in cols_grouped_height.items()}
-    for height, cols_this_height in tqdm(cols_grouped_height.items()):
-        if os.path.exists(f'results/5_{dataset_name}_gc/{lag}_{method}_{height}.eps'):
-            pbar.update(1)
+    for height, cols_this_height in tqdm(cols_grouped_height.items(), desc=method):
+        if os.path.exists(f'results/5_{dataset_name}_gc/{method}_{height}.eps'):
             continue
 
         x = ts[cols_this_height].values
@@ -73,7 +84,7 @@ for method, method_instance in methods_dict:
         ax.set_yticklabels(cols_this_height, rotation=0)
         fig.subplots_adjust(bottom=0.15, top=0.95, left=0.10, right=1)
         sns.set_style({'xtick.bottom': True}, {'ytick.left': True})
-        fig.savefig(f'results/5_{dataset_name}_gc/{lag}_{method}_{height}.eps')
+        fig.savefig(f'results/5_{dataset_name}_gc/{method}_{height}.eps')
         plt.close(fig)
 
-    pd.to_pickle(gc_val, f'raw/5_{dataset_name}_gc_{lag}_{method}.pkl')
+    pd.to_pickle(gc_val, f'raw/5_{dataset_name}_gc_{method}.pkl')

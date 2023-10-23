@@ -17,21 +17,10 @@ Allow different versions of CUDA and CuDNN. For settings of each method, please 
 
 Install PyTorch version 2.1.0, corresponding to the local CUDA version.
 
-Run the following command.
+Run the following command to initialize.
 
 ```
 pip install -r requirements.txt
+python file_exchange.py
 python method_gcastle/install.py
 ```
-
-**Input:**
-
-Copy the following files from [Amazon molecule](https://github.com/cloudy-sfu/Amazon-molecule) to this program. Users should fill the **local** file path of [Amazon molecule](https://github.com/cloudy-sfu/Amazon-molecule) program in Line 1 of the following script, and that of this program in Line 2. Do not wrap file paths with quote symbols.
-
-```
-export base_dir=
-export liter_dir=
-export dataset="default_15min"
-cp $base_dir/raw/1_$dataset_name\_std.pkl $liter_dir/data/1_$dataset_name\_std.pkl
-```
-
