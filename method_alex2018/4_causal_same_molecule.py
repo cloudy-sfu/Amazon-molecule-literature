@@ -40,6 +40,7 @@ def bisearch(x, lambda_lb, lambda_ub, max_search, count=0):
     lambda_0 = (lambda_lb + lambda_ub) * 0.5
     clstm = cLSTM(x.shape[-1], hidden=32).cuda(device=device)
     train_loss_list = train_model_ista(clstm, x, context=10, lam=lambda_0, lam_ridge=0.1, lr=1e-3, max_iter=2000)
+    # transposed, raw meaning at `clstm.py` Ln. 87
     gc_est = clstm.GC(threshold=False).cpu().data.numpy().T
     if count == max_search:
         return clstm, gc_est, lambda_0

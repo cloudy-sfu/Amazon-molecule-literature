@@ -69,6 +69,7 @@ for method, method_instance in methods_dict.items():
         x = ts[cols_this_height].values
         model = deepcopy(method_instance)
         model.learn(x)
+        # Direction confirmed: https://github.com/huawei-noah/trustworthyAI/issues/115
         gc_val[height] = model.causal_matrix
 
         # Heatmap
