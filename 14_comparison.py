@@ -3,6 +3,8 @@ from itertools import combinations
 import numpy as np
 from scipy.optimize import minimize
 import logging
+from sklearn.metrics import confusion_matrix
+from scipy.stats import fisher_exact
 
 # %% Constants.
 lag = 96
@@ -68,9 +70,13 @@ dist_mat = {
     task: pd.DataFrame(data=np.nan, index=methods.keys(), columns=methods.keys(), dtype=float)
     for task in heights + ['same_molecule']
 }
-# for task in heights + ['same_molecule']:
-#     dist_mat[task] = pd.DataFrame(data=np.nan, index=methods.keys(), columns=methods.keys(), dtype=float)
-#     np.fill_diagonal(dist_mat[task].values, 0)
+# Odds ratio: https://en.wikipedia.org/wiki/Odds_ratio
+# H_0: odds_ratio=1 -> independent -> overlap by random chance
+# H_1: odds_ratio!=1 -> significant agreement/consistency -> overlap by dependency
+fisher_mat = {
+    task: pd.DataFrame(data=np.nan, index=methods.keys(), columns=methods.keys(), dtype=float)
+    for task in heights + ['same_molecule']
+}
 logging.basicConfig(
     filename=f'raw/14_{dataset_name}_log_{lag}.txt',
     filemode='w',
@@ -108,6 +114,9 @@ for height in heights:
         assert gc_val_1.shape == gc_val_2.shape
         if cfg1['type'] == cfg2['type'] == 'b':
             dist_mat[height].loc[name1, name2] = np.mean(gc_val_1 != gc_val_2)
+            cmat = confusion_matrix(gc_val_1, gc_val_2, labels=[True, False])
+            odd, p = fisher_exact(cmat)
+            fisher_mat[height].loc[name1, name2] = p
         elif cfg1['type'] == 'b' and cfg2['type'] == 'p':
             result = minimize(
                 fun=inconsistency, x0=np.array([0.05]),
@@ -117,6 +126,10 @@ for height in heights:
             logging.info(f'Compare {name1} and {name2} in task {height}, {name1} is boolean, traverse p-value of '
                          f'{name2}, optimum critical value is {result.x}.')
             dist_mat[height].loc[name1, name2] = result.fun
+            bool_2 = gc_val_2 < result.x
+            cmat = confusion_matrix(gc_val_1, bool_2, labels=[True, False])
+            odd, p = fisher_exact(cmat)
+            fisher_mat[height].loc[name1, name2] = p
         elif cfg1['type'] == 'p' and cfg2['type'] == 'b':
             result = minimize(
                 fun=inconsistency, x0=np.array([0.05]),
@@ -126,6 +139,10 @@ for height in heights:
             logging.info(f'Compare {name1} and {name2} in task {height}, {name2} is boolean, traverse p-value of '
                          f'{name1}, optimum critical value is {result.x}.')
             dist_mat[height].loc[name1, name2] = result.fun
+            bool_1 = gc_val_1 < result.x
+            cmat = confusion_matrix(gc_val_2, bool_1, labels=[True, False])
+            odd, p = fisher_exact(cmat)
+            fisher_mat[height].loc[name1, name2] = p
         elif cfg1['type'] == 'b' and cfg2['type'] == 'gc':
             result = minimize(
                 fun=inconsistency, x0=np.array([0]),
@@ -135,6 +152,10 @@ for height in heights:
             logging.info(f'Compare {name1} and {name2} in task {height}, {name1} is boolean, traverse GC statistics '
                          f'of {name2}, optimum threshold is {result.x}.')
             dist_mat[height].loc[name1, name2] = result.fun
+            bool_2 = gc_val_2 > result.x
+            cmat = confusion_matrix(gc_val_1, bool_2, labels=[True, False])
+            odd, p = fisher_exact(cmat)
+            fisher_mat[height].loc[name1, name2] = p
         elif cfg1['type'] == 'gc' and cfg2['type'] == 'b':
             result = minimize(
                 fun=inconsistency, x0=np.array([0]),
@@ -144,6 +165,10 @@ for height in heights:
             logging.info(f'Compare {name1} and {name2} in task {height}, {name2} is boolean, traverse GC statistics '
                          f'of {name1}, optimum threshold is {result.x}.')
             dist_mat[height].loc[name1, name2] = result.fun
+            bool_1 = gc_val_1 > result.x
+            cmat = confusion_matrix(gc_val_2, bool_1, labels=[True, False])
+            odd, p = fisher_exact(cmat)
+            fisher_mat[height].loc[name1, name2] = p
         elif cfg1['type'] == cfg2['type'] == 'p':
             dist_ = []
             for cv in cvs:
@@ -156,8 +181,15 @@ for height in heights:
             logging.info(f'Compare {name1} and {name2} in task {height}, p-value leading to maximum consistency is '
                          f'{cvs[b]}.')
             dist_mat[height].loc[name1, name2] = dist_[b]
+
+            bool_1 = gc_val_1 < cvs[b]
+            bool_2 = gc_val_2 < cvs[b]
+            cmat = confusion_matrix(bool_1, bool_2, labels=[True, False])
+            odd, p = fisher_exact(cmat)
+            fisher_mat[height].loc[name1, name2] = p
         elif cfg1['type'] == 'p' and cfg2['type'] == 'gc':
             dist_ = []
+            optim_threshold = []
             for cv in cvs:
                 bool_1 = gc_val_1 < cv
                 result = minimize(
@@ -169,12 +201,19 @@ for height in heights:
                              f'is {cv}, ratio of causal relationships is {np.mean(bool_1)}. Traverse GC statistics '
                              f'{name2}, optimum threshold {result.x}.')
                 dist_.append(result.fun)
+                optim_threshold.append(result.x)
             b = np.argmin(dist_)
             logging.info(f'Compare {name1} and {name2} in task {height}, p-value leading to maximum consistency is '
                          f'{cvs[b]}.')
             dist_mat[height].loc[name1, name2] = dist_[b]
+            bool_1 = gc_val_1 < cvs[b]
+            bool_2 = gc_val_2 > optim_threshold[b]
+            cmat = confusion_matrix(bool_1, bool_2, labels=[True, False])
+            odd, p = fisher_exact(cmat)
+            fisher_mat[height].loc[name1, name2] = p
         elif cfg1['type'] == 'gc' and cfg2['type'] == 'p':
             dist_ = []
+            optim_threshold = []
             for cv in cvs:
                 bool_2 = gc_val_2 < cv
                 result = minimize(
@@ -186,13 +225,20 @@ for height in heights:
                              f'is {cv}, ratio of causal relationships is {np.mean(bool_2)}. Traverse GC statistics '
                              f'{name1}, optimum threshold {result.x}.')
                 dist_.append(result.fun)
+                optim_threshold.append(result.x)
             b = np.argmin(dist_)
             logging.info(f'Compare {name1} and {name2} in task {height}, p-value leading to maximum consistency is '
                          f'{cvs[b]}.')
             dist_mat[height].loc[name1, name2] = dist_[b]
+            bool_1 = gc_val_1 > optim_threshold[b]
+            bool_2 = gc_val_2 < cvs[b]
+            cmat = confusion_matrix(bool_1, bool_2, labels=[True, False])
+            odd, p = fisher_exact(cmat)
+            fisher_mat[height].loc[name1, name2] = p
         elif cfg1['type'] == cfg2['type'] == 'gc':
             corr = np.corrcoef(gc_val_1, gc_val_2)[0, 1]
             dist_mat[height].loc[name1, name2] = 1 - np.abs(corr)
+            fisher_mat[height].loc[name1, name2] = 1 - np.abs(corr)
         else:
             raise Exception(f"Types not supported, type of method 1 is {cfg1['type']}, that of method 2 is "
                             f"{cfg2['type']}.")
@@ -203,10 +249,13 @@ for (name1, cfg1), (name2, cfg2) in combinations(methods.items(), r=2):
     gc_df_1 = pd.read_pickle(cfg1['same_molecule'])
     gc_df_2 = pd.read_pickle(cfg2['same_molecule'])
     gc_df_2.reindex(index=gc_df_1.index, columns=gc_df_1.columns, copy=False)
-    gc_val_1 = gc_df_1.values
-    gc_val_2 = gc_df_2.values
+    gc_val_1 = gc_df_1.values.flatten()
+    gc_val_2 = gc_df_2.values.flatten()
     if cfg1['type'] == cfg2['type'] == 'b':
         dist_mat['same_molecule'].loc[name1, name2] = np.mean(gc_val_1 != gc_val_2)
+        cmat = confusion_matrix(gc_val_1, gc_val_2, labels=[True, False])
+        odd, p = fisher_exact(cmat)
+        fisher_mat['same_molecule'].loc[name1, name2] = p
     elif cfg1['type'] == 'b' and cfg2['type'] == 'p':
         result = minimize(
             fun=inconsistency, x0=np.array([0.05]),
@@ -216,6 +265,10 @@ for (name1, cfg1), (name2, cfg2) in combinations(methods.items(), r=2):
         logging.info(f'Compare {name1} and {name2} in task same_molecule, {name1} is boolean, traverse p-value of '
                      f'{name2}, optimum critical value is {result.x}.')
         dist_mat['same_molecule'].loc[name1, name2] = result.fun
+        bool_2 = gc_val_2 < result.x
+        cmat = confusion_matrix(gc_val_1, bool_2, labels=[True, False])
+        odd, p = fisher_exact(cmat)
+        fisher_mat['same_molecule'].loc[name1, name2] = p
     elif cfg1['type'] == 'p' and cfg2['type'] == 'b':
         result = minimize(
             fun=inconsistency, x0=np.array([0.05]),
@@ -225,6 +278,10 @@ for (name1, cfg1), (name2, cfg2) in combinations(methods.items(), r=2):
         logging.info(f'Compare {name1} and {name2} in task same_molecule, {name2} is boolean, traverse p-value of '
                      f'{name1}, optimum critical value is {result.x}.')
         dist_mat['same_molecule'].loc[name1, name2] = result.fun
+        bool_1 = gc_val_1 < result.x
+        cmat = confusion_matrix(gc_val_2, bool_1, labels=[True, False])
+        odd, p = fisher_exact(cmat)
+        fisher_mat['same_molecule'].loc[name1, name2] = p
     elif cfg1['type'] == 'b' and cfg2['type'] == 'gc':
         result = minimize(
             fun=inconsistency, x0=np.array([0]),
@@ -234,6 +291,10 @@ for (name1, cfg1), (name2, cfg2) in combinations(methods.items(), r=2):
         logging.info(f'Compare {name1} and {name2} in task same_molecule, {name1} is boolean, traverse GC statistics '
                      f'of {name2}, optimum threshold is {result.x}.')
         dist_mat['same_molecule'].loc[name1, name2] = result.fun
+        bool_2 = gc_val_2 > result.x
+        cmat = confusion_matrix(gc_val_1, bool_2, labels=[True, False])
+        odd, p = fisher_exact(cmat)
+        fisher_mat['same_molecule'].loc[name1, name2] = p
     elif cfg1['type'] == 'gc' and cfg2['type'] == 'b':
         result = minimize(
             fun=inconsistency, x0=np.array([0]),
@@ -243,6 +304,10 @@ for (name1, cfg1), (name2, cfg2) in combinations(methods.items(), r=2):
         logging.info(f'Compare {name1} and {name2} in task same_molecule, {name2} is boolean, traverse GC statistics '
                      f'of {name1}, optimum threshold is {result.x}.')
         dist_mat['same_molecule'].loc[name1, name2] = result.fun
+        bool_1 = gc_val_1 > result.x
+        cmat = confusion_matrix(gc_val_2, bool_1, labels=[True, False])
+        odd, p = fisher_exact(cmat)
+        fisher_mat['same_molecule'].loc[name1, name2] = p
     elif cfg1['type'] == cfg2['type'] == 'p':
         dist_ = []
         for cv in cvs:
@@ -255,8 +320,14 @@ for (name1, cfg1), (name2, cfg2) in combinations(methods.items(), r=2):
         logging.info(f'Compare {name1} and {name2} in task same_molecule, p-value leading to maximum consistency is '
                      f'{cvs[b]}.')
         dist_mat['same_molecule'].loc[name1, name2] = dist_[b]
+        bool_1 = gc_val_1 < cvs[b]
+        bool_2 = gc_val_2 < cvs[b]
+        cmat = confusion_matrix(bool_1, bool_2, labels=[True, False])
+        odd, p = fisher_exact(cmat)
+        fisher_mat['same_molecule'].loc[name1, name2] = p
     elif cfg1['type'] == 'p' and cfg2['type'] == 'gc':
         dist_ = []
+        optim_threshold = []
         for cv in cvs:
             bool_1 = gc_val_1 < cv
             result = minimize(
@@ -268,12 +339,19 @@ for (name1, cfg1), (name2, cfg2) in combinations(methods.items(), r=2):
                          f'is {cv}, ratio of causal relationships is {np.mean(bool_1)}. Traverse GC statistics '
                          f'{name2}, optimum threshold {result.x}.')
             dist_.append(result.fun)
+            optim_threshold.append(result.x)
         b = np.argmin(dist_)
         logging.info(f'Compare {name1} and {name2} in task same_molecule, p-value leading to maximum consistency is '
                      f'{cvs[b]}.')
         dist_mat['same_molecule'].loc[name1, name2] = dist_[b]
+        bool_1 = gc_val_1 < cvs[b]
+        bool_2 = gc_val_2 > optim_threshold[b]
+        cmat = confusion_matrix(bool_1, bool_2, labels=[True, False])
+        odd, p = fisher_exact(cmat)
+        fisher_mat['same_molecule'].loc[name1, name2] = p
     elif cfg1['type'] == 'gc' and cfg2['type'] == 'p':
         dist_ = []
+        optim_threshold = []
         for cv in cvs:
             bool_2 = gc_val_2 < cv
             result = minimize(
@@ -285,16 +363,24 @@ for (name1, cfg1), (name2, cfg2) in combinations(methods.items(), r=2):
                          f'is {cv}, ratio of causal relationships is {np.mean(bool_2)}. Traverse GC statistics '
                          f'{name1}, optimum threshold {result.x}.')
             dist_.append(result.fun)
+            optim_threshold.append(result.x)
         b = np.argmin(dist_)
         logging.info(f'Compare {name1} and {name2} in task same_molecule, p-value leading to maximum consistency is '
                      f'{cvs[b]}.')
         dist_mat['same_molecule'].loc[name1, name2] = dist_[b]
+        bool_1 = gc_val_1 > optim_threshold[b]
+        bool_2 = gc_val_2 < cvs[b]
+        cmat = confusion_matrix(bool_1, bool_2, labels=[True, False])
+        odd, p = fisher_exact(cmat)
+        fisher_mat['same_molecule'].loc[name1, name2] = p
     elif cfg1['type'] == cfg2['type'] == 'gc':
-        corr = np.corrcoef(gc_val_1.flatten(), gc_val_2.flatten())[0, 1]
+        corr = np.corrcoef(gc_val_1, gc_val_2)[0, 1]
         dist_mat['same_molecule'].loc[name1, name2] = 1 - np.abs(corr)
+        fisher_mat['same_molecule'].loc[name1, name2] = 1 - np.abs(corr)
     else:
         raise Exception(f"Types not supported, type of method 1 is {cfg1['type']}, that of method 2 is "
                         f"{cfg2['type']}.")
 
 # %% Export.
 pd.to_pickle(dist_mat, f"raw/14_{dataset_name}_consistency_matrix_{lag}.pkl")
+pd.to_pickle(fisher_mat, f"raw/14_{dataset_name}_fisher_p_{lag}.pkl")
