@@ -66,7 +66,7 @@ for method, method_instance in methods_dict.items():
         continue
 
     gc_val = pd.DataFrame(index=cols_grouped_mass.keys(), columns=pd.MultiIndex.from_tuples(heights_pair), dtype=float,
-                          data=1)
+                          data=np.nan)
     for mass, cols_this_mass in tqdm(cols_grouped_mass.items(), desc=method):
         if os.path.exists(f'results/6_{dataset_name}_gc/{method}_{mass}.eps'):
             continue

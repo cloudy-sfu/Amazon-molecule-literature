@@ -30,7 +30,7 @@ heights_pair = list((fi, fj) for fi, fj in product(all_possible_heights, repeat=
 
 # %% Initialization.
 gc_val = pd.DataFrame(index=cols_grouped_mass.keys(), columns=pd.MultiIndex.from_tuples(heights_pair), dtype=float,
-                      data=1)
+                      data=np.nan)
 device = torch.device('cuda')
 
 @np.vectorize

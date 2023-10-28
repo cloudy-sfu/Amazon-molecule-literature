@@ -19,3 +19,6 @@ shutil.copy(os.path.join(base_dir, f'raw/12_{dataset_name}_p_{lag}.pkl'), 'data/
 # MLE results
 shutil.copy(os.path.join(base_dir, f'raw/8_{dataset_name}_p_{lag}.pkl'), 'data/')
 shutil.copy(os.path.join(base_dir, f'raw/17_{dataset_name}_p_{lag}.pkl'), 'data/')
+# Wilcoxon results
+shutil.copy(os.path.join(base_dir, f'raw/7_{dataset_name}_p_{lag}.pkl'), 'data/')
+shutil.copy(os.path.join(base_dir, f'raw/10_{dataset_name}_p_{lag}.pkl'), 'data/')

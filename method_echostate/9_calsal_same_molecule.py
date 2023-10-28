@@ -16,7 +16,7 @@ gc_mat = {k: v for k, v in zip(data_keys, data_vals)}
 
 all_heights = np.array([x[0][0] for x in data['all_heights']])
 heights_pair = list((fi, fj) for fi, fj in product(all_heights, repeat=2) if fi != fj)
-gc_val = pd.DataFrame(index=gc_mat.keys(), columns=pd.MultiIndex.from_tuples(heights_pair), dtype=float, data=1)
+gc_val = pd.DataFrame(index=gc_mat.keys(), columns=pd.MultiIndex.from_tuples(heights_pair), dtype=float, data=np.nan)
 for mass, gc_est in gc_mat.items():
     m = gc_est.shape[0]
     for i, j in product(range(m), repeat=2):

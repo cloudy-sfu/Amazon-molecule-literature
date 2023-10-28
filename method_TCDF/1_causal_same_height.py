@@ -23,7 +23,7 @@ for mass, height, mass_height in mass_heights:
     cols_grouped_height[height].append(mass_height)
 
 # %% Initialization.
-gc_val = {height: np.ones(shape=(len(x), len(x))) for height, x in cols_grouped_height.items()}
+gc_val = {height: np.zeros(shape=(len(x), len(x))) for height, x in cols_grouped_height.items()}
 os.makedirs(f'results/1_{dataset_name}_gc/', exist_ok=True)
 pbar = tqdm(total=ts_train.shape[1])
 
@@ -37,7 +37,7 @@ for height, cols_this_height in cols_grouped_height.items():
         for i in causes:
             if i == j:
                 continue
-            gc_val[height][i, j] = 0
+            gc_val[height][i, j] = 1
         pbar.update(1)
 
     # Heatmap
