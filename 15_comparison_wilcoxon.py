@@ -12,62 +12,39 @@ from scipy.stats import fisher_exact
 from sklearn.metrics import confusion_matrix
 
 # %% Constants.
-lag = 96
-dataset_name = 'default_15min'
+dataset_name_lags = [
+    ['default_15min', [48, 96, 192]],
+    ['default_1h', [12, 24, 48]],
+    ['default_4h', [3, 6, 12]],
+]
 # type:
 #     p: p-value, float [0, 1], p < CV (critical value) represents causality
 #     gc: GC statistics, float [0, +∞], GC_est > CV represents causality
 #     b: boolean, {0, 1}, 1 means causality
-methods = {
-    '(Ours) SSR': {
-        'same_height': f'data/6_{dataset_name}_p_{lag}.pkl',
-        'same_molecule': f'data/12_{dataset_name}_p_{lag}.pkl',
-        'type': 'p',
-    },
-    '(Ours) MLE': {
-        'same_height': f'data/8_{dataset_name}_p_{lag}.pkl',
-        'same_molecule': f'data/17_{dataset_name}_p_{lag}.pkl',
-        'type': 'p'
-    },
-    '(Ours) Wilcoxon': {
-        'same_height': f'data/7_{dataset_name}_p_{lag}.pkl',
-        'same_molecule': f'data/10_{dataset_name}_p_{lag}.pkl',
-        'type': 'p'
-    },
-    '(Other GC) Echo': {
-        'same_height': f'raw/8_{dataset_name}_gc.pkl',
-        'same_molecule': f'raw/9_{dataset_name}_gc.pkl',
-        'type': 'gc'
-    },
-    '(Other GC) TCDF': {
-        'same_height': f'raw/1_{dataset_name}_gc_{lag}.pkl',
-        'same_molecule': f'raw/2_{dataset_name}_gc_{lag}.pkl',
-        'type': 'b'
-    },
-    '(Other GC) cLSTM': {
-        'same_height': f'raw/3_{dataset_name}_gc.pkl',
-        'same_molecule': f'raw/4_{dataset_name}_gc.pkl',
-        'type': 'gc'
-    },
-    '(Other GC) eSRU': {
-        'same_height': f'raw/10_{dataset_name}_gc.pkl',
-        'same_molecule': f'raw/11_{dataset_name}_gc.pkl',
-        'type': 'gc'
-    },
-    '(Other GC) GVAR': {
-        'same_height': f'raw/12_{dataset_name}_gc_{lag}.pkl',
-        'same_molecule': f'raw/13_{dataset_name}_gc_{lag}.pkl',
-        'type': 'gc'
-    }
-} | {
-    '(non-GC) ' + method: {
-        'same_height': f'raw/5_{dataset_name}_gc_{method}.pkl',
-        'same_molecule': f'raw/6_{dataset_name}_gc_{method}.pkl',
-        'type': 'b'
-    }
-    for method in ['PC', 'DirectLiNGAM', 'ICALiNGAM', 'GES', 'NOTEARS', 'NOTEARS-MLP', 'NOTEARS-SOB', 'DAG-GNN',
-                   'GOLEM', 'GraNDAG', 'MCSL', 'GAE', 'CORL']
+methods = dict()
+methods['SSR'] = {
+    'same_height': f'data/6_default_15min_p_96.pkl',
+    'same_molecule': f'data/12_default_15min_p_96.pkl',
+    'type': 'p',
 }
+for dataset_name, lags in dataset_name_lags:
+    for lag in lags:
+        methods[f'Wilcoxon ({dataset_name}, {lag})'] = {
+            'same_height': f'data/7_{dataset_name}_p_{lag}.pkl',
+            'same_molecule': f'data/10_{dataset_name}_p_{lag}.pkl',
+            'type': 'p'
+        }
+        methods[f'MLE ({dataset_name}, {lag})'] = {
+            'same_height': f'data/8_{dataset_name}_p_{lag}.pkl',
+            'same_molecule': f'data/17_{dataset_name}_p_{lag}.pkl',
+            'type': 'p'
+        }
+method_family_colors = {
+    'Wilcoxon': '#3b4cc0',
+    'SSR': '#96b7ff',
+    'MLE': '#c3543c'
+}
+default_color = '#dddcdc'
 
 # %% Initialization.
 heights = list(pd.read_pickle(list(methods.values())[0]['same_height']).keys())
@@ -82,8 +59,9 @@ fisher_mat = {
     task: pd.DataFrame(data=np.nan, index=methods.keys(), columns=methods.keys(), dtype=float)
     for task in heights + ['same_molecule']
 }
+os.makedirs('results/15_default', exist_ok=True)
 logging.basicConfig(
-    filename=f'raw/14_{dataset_name}_log_{lag}.txt',
+    filename='results/15_default/log.txt',
     filemode='w',
     format='[%(asctime)s] %(levelname)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
@@ -386,19 +364,6 @@ for (name1, cfg1), (name2, cfg2) in combinations(methods.items(), r=2):
         raise Exception(f"Types not supported, type of method 1 is {cfg1['type']}, that of method 2 is "
                         f"{cfg2['type']}.")
 
-# %% Export.
-pd.to_pickle(dist_mat, f"raw/14_{dataset_name}_consistency_matrix_{lag}.pkl")
-pd.to_pickle(fisher_mat, f"raw/14_{dataset_name}_fisher_p_{lag}.pkl")
-
-# %% Initialization.
-os.makedirs(f'results/14_{dataset_name}_dendrogram_{lag}/', exist_ok=True)
-method_family_colors = {
-    'Ours': '#3b4cc0',
-    'Other GC': '#96b7ff',
-    'non-GC': '#c3543c'
-}
-default_color = '#dddcdc'
-
 # %% Consistency per task by accuracy.
 for task, dist in dist_mat.items():
     dist_condensed = squareform(dist.values, checks=False)
@@ -409,10 +374,10 @@ for task, dist in dist_mat.items():
     ax.set_xlabel('Inconsistency')
     ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
     for label in ax.get_yticklabels():
-        label_category = re.search(r'\((.*?)\)', label.get_text()).group(1)
+        label_category = re.search(r'(\S+)(?=\s*\(|$)', label.get_text()).group(1)
         label.set_color(method_family_colors.get(label_category, default_color))
-    fig.subplots_adjust(left=0.35, right=0.95, bottom=0.1, top=0.95)
-    fig.savefig(f'results/14_{dataset_name}_dendrogram_{lag}/acc_{task}.eps')
+    fig.subplots_adjust(left=0.5, right=0.95, bottom=0.1, top=0.95)
+    fig.savefig(f'results/15_default/dendrogram_acc_{task}.eps')
     plt.close(fig)
 
 # %% Consistency overall by accuracy.
@@ -425,10 +390,10 @@ ax.set_ylabel('Methods')
 ax.set_xlabel('Inconsistency')
 ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
 for label in ax.get_yticklabels():
-    label_category = re.search(r'\((.*?)\)', label.get_text()).group(1)
+    label_category = re.search(r'(\S+)(?=\s*\(|$)', label.get_text()).group(1)
     label.set_color(method_family_colors.get(label_category, default_color))
-fig.subplots_adjust(left=0.35, right=0.95, bottom=0.1, top=0.95)
-fig.savefig(f'results/14_{dataset_name}_dendrogram_{lag}/acc_overall.eps')
+fig.subplots_adjust(left=0.5, right=0.95, bottom=0.1, top=0.95)
+fig.savefig('results/15_default/dendrogram_acc_overall.eps')
 plt.close(fig)
 
 # %% Consistency per task by Fisher's exact test.
@@ -441,10 +406,10 @@ for task, dist in fisher_mat.items():
     ax.set_xlabel('Independence')
     ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
     for label in ax.get_yticklabels():
-        label_category = re.search(r'\((.*?)\)', label.get_text()).group(1)
+        label_category = re.search(r'(\S+)(?=\s*\(|$)', label.get_text()).group(1)
         label.set_color(method_family_colors.get(label_category, default_color))
-    fig.subplots_adjust(left=0.35, right=0.95, bottom=0.1, top=0.95)
-    fig.savefig(f'results/14_{dataset_name}_dendrogram_{lag}/fisher_{task}.eps')
+    fig.subplots_adjust(left=0.5, right=0.95, bottom=0.1, top=0.95)
+    fig.savefig(f'results/15_default/dendrogram_fisher_{task}.eps')
     plt.close(fig)
 
 # %% Consistency overall by Fisher's exact test.
@@ -457,8 +422,12 @@ ax.set_ylabel('Methods')
 ax.set_xlabel('Independence')
 ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
 for label in ax.get_yticklabels():
-    label_category = re.search(r'\((.*?)\)', label.get_text()).group(1)
+    label_category = re.search(r'(\S+)(?=\s*\(|$)', label.get_text()).group(1)
     label.set_color(method_family_colors.get(label_category, default_color))
-fig.subplots_adjust(left=0.35, right=0.95, bottom=0.1, top=0.95)
-fig.savefig(f'results/14_{dataset_name}_dendrogram_{lag}/fisher_overall.eps')
+fig.subplots_adjust(left=0.5, right=0.95, bottom=0.1, top=0.95)
+fig.savefig('results/15_default/dendrogram_fisher_overall.eps')
 plt.close(fig)
+
+# %% Export.
+pd.to_pickle(dist_mat, 'raw/15_default_consistency_matrix.pkl')
+pd.to_pickle(fisher_mat, 'raw/15_fisher_p_matrix.pkl')
